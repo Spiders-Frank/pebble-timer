@@ -81,7 +81,8 @@ static uint16_t menu_get_num_sections_callback(MenuLayer *menu_layer, void *cont
 static uint16_t menu_get_num_rows_callback(MenuLayer *menu_layer, uint16_t section_index,
                                            void *context) {
   MenuWindow *menu_window = (MenuWindow*)context;
-  return menu_window->callbacks.get_timer_count(context) + 1;
+  return menu_window->callbacks.get_timer_count(context) + 1 +
+    (menu_window->callbacks.get_sound_enabled != NULL);
 }
 
 
@@ -168,6 +169,10 @@ static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuI
   if (cell_index->row == 0) {
     menu_cell_draw(ctx, cell_layer, "+", NULL, 0, fonts_get_system_font(FONT_KEY_GOTHIC_28),
       true, GColorBlack, GColorWhite);
+  } else if (cell_index->row > menu_window->callbacks.get_timer_count(context)) {
+    char *title = menu_window->callbacks.get_sound_enabled(context) ? "Sound: On" : "Sound: Off";
+    menu_cell_draw(ctx, cell_layer, title, NULL, 0, fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD),
+      true, GColorBlack, GColorWhite);
   } else {
     CountdownTimer *countdown_timer = menu_window->callbacks.get_timer(cell_index->row - 1,
                                                                        context);
@@ -250,7 +255,9 @@ static MenuWindow *menu_window_init(MenuWindow *menu_window,
 #ifdef PBL_ROUND
     menu_window->text = text_layer_create(GRect(0, 129, bounds.size.w, 20));
 #else
-    menu_window->text = text_layer_create(GRect(0, 85, bounds.size.w, 20));
+    // sits near the bottom, below the sound row, when there is one
+    int16_t text_y = menu_window_callbacks.get_sound_enabled ? bounds.size.h - 30 : 85;
+    menu_window->text = text_layer_create(GRect(0, text_y, bounds.size.w, 20));
 #endif
     text_layer_set_text(menu_window->text, "No Timers");
     text_layer_set_font(menu_window->text, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));

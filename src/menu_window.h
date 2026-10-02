@@ -61,6 +61,17 @@ typedef void (*MenuWindowClickCallback)(uint8_t index, void *context);
 
 
 /*
+ * Callback:    MenuWindowGetSoundEnabled
+ * --------------------------------------
+ * gets whether the timer chime is on; when set, a sound toggle row is shown
+ * after the timers and clicks on it are passed to MenuWindowClickCallback
+ */
+
+typedef bool (*MenuWindowGetSoundEnabled)(void *context);
+
+
+
+/*
  * Structure:   MenuWindowCallbacks
  * --------------------------------
  * structure containing all MenuWindow callbacks
@@ -70,6 +81,7 @@ typedef struct MenuWindowCallbacks {
   MenuWindowGetTimer get_timer;
   MenuWindowGetTimerCount get_timer_count;
   MenuWindowClickCallback clicked;
+  MenuWindowGetSoundEnabled get_sound_enabled;  //< optional
 } MenuWindowCallbacks;
 
 

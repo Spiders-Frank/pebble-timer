@@ -47,6 +47,14 @@
 #include <pebble.h>
 #include "countdown_timer.h"
 
+// only these watches have a speaker
+#if defined(PBL_PLATFORM_FLINT) || defined(PBL_PLATFORM_EMERY)
+#define TIMER_HAS_SPEAKER
+#endif
+
+// the chime repeats for up to this long; keep the alert popup open at least as long
+#define POPUP_CHIME_DURATION_MS 60000
+
 
 
 /*******************************************************************************
@@ -196,9 +204,11 @@ void popup_window_set_auto_close_duration(PopupWindow *popup_window, int64_t dur
  * -------------------------------------------------
  * sets up an app_timer callback to run multiple instances
  * of a vibration pattern
+ *
+ *  chime: also play a chime with each vibration (speaker watches only)
  */
 
-void popup_window_set_vibes();
+void popup_window_set_vibes(bool chime);
 
 
 /*

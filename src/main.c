@@ -22,6 +22,7 @@
 #define COUNTDOWN_TIMER_ID_PERSIST_KEY 3568356
 #define PERSIST_VERSION 1
 #define PERSIST_VERSION_KEY 46134672
+#define SOUND_ENABLED_PERSIST_KEY 76863
 #define COUNTDOWN_TIMERS_MAX 8
 #define COUNTDOWN_TIMER_SNOOZE_DELAY 60000 // milliseconds
 #define TIMER_MIN_LENGTH 5000 // milliseconds
@@ -50,6 +51,7 @@ static CountdownTimer *s_countdown_timers[COUNTDOWN_TIMERS_MAX] = {};
 static int32_t s_countdown_timer_id_max = 0;
 static AppTimer *s_app_timer = NULL;
 static int64_t s_last_activity = 0;
+static bool s_sound_enabled = false;
 
 static uint16_t prv_get_next_refresh_delay(void) {
   if (popup_window_get_topmost_window(s_popup_window)) {
@@ -175,10 +177,11 @@ static void app_timer_callback(void *data) {
 #else
     popup_window_set_pdc(s_popup_window, RESOURCE_ID_ICON_ALARM_CLOCK, true);
 #endif
-    popup_window_set_auto_close_duration(s_popup_window, 15000);
+    popup_window_set_auto_close_duration(s_popup_window,
+      s_sound_enabled ? POPUP_CHIME_DURATION_MS : 15000);
     popup_window_add_action_bar(s_popup_window);
     popup_window_push(s_popup_window, true);
-    popup_window_set_vibes();
+    popup_window_set_vibes(s_sound_enabled);
 
     // we want the alarm going off to count as activity
     s_last_activity = countdown_timer_get_epoch_ms();
@@ -440,15 +443,31 @@ static uint8_t menu_window_get_timer_count_callback(void *context) {
 
 
 
+#ifdef TIMER_HAS_SPEAKER
+/*
+ * MenuWindow get sound enabled callback
+ */
+
+static bool menu_window_get_sound_enabled_callback(void *context) {
+  return s_sound_enabled;
+}
+#endif
+
+
+
 /*
  * MenuWindow click callback
  */
 
 static void menu_window_click_callback(uint8_t index, void *context) {
-  // add a timer if on the "+", otherwise, open the detailed view
+  // add a timer if on the "+", toggle sound if on the last row, otherwise open the detailed view
   if (index == 0) {
     setting_window_set_timer(s_setting_window, NULL);
     setting_window_push(s_setting_window, true);
+  } else if (index > s_countdown_timers_count) {
+    s_sound_enabled = !s_sound_enabled;
+    persist_write_bool(SOUND_ENABLED_PERSIST_KEY, s_sound_enabled);
+    menu_window_refresh(s_menu_window);
   } else {
     // show timer in detail window
     detail_window_set_countdown_timer(s_detail_window, s_countdown_timers[index - 1]);
@@ -484,6 +503,9 @@ static void initialize(void) {
   if (persist_exists(COUNTDOWN_TIMER_ID_PERSIST_KEY)) {
     s_countdown_timer_id_max = persist_read_int(COUNTDOWN_TIMER_ID_PERSIST_KEY);
   }
+#ifdef TIMER_HAS_SPEAKER
+  s_sound_enabled = persist_read_bool(SOUND_ENABLED_PERSIST_KEY);
+#endif
   // open the restored list with the most recently used timer on top
   prv_sort_timers_by_recency();
   // cancel wakeup
@@ -494,6 +516,9 @@ static void initialize(void) {
     .get_timer = menu_window_get_timer_callback,
     .get_timer_count = menu_window_get_timer_count_callback,
     .clicked = menu_window_click_callback,
+#ifdef TIMER_HAS_SPEAKER
+    .get_sound_enabled = menu_window_get_sound_enabled_callback,
+#endif
   };
   s_menu_window = menu_window_create(menu_callbacks, true);
   menu_window_set_highlight_color(s_menu_window, PBL_IF_COLOR_ELSE(GColorPictonBlue, GColorBlack));

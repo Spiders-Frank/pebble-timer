@@ -51,12 +51,30 @@
  */
 
 #define NUM_VIBE_INTERVALS 6
+#define ALERT_INTERVAL_MS 2300
+// chime keeps repeating after the vibes stop; last one starts at 57.5 s and ends before 60 s
+#define NUM_CHIME_INTERVALS (POPUP_CHIME_DURATION_MS / ALERT_INTERVAL_MS)
 
 /*******************************************************************************
  * MAIN LOCAL VARIABLES
  */
 
 static AppTimer *s_app_timer = NULL;
+static bool s_chime = false;
+static int64_t s_alert_start_ms = 0;
+
+#ifdef TIMER_HAS_SPEAKER
+#define BEEP {.midi_note = 108, .waveform = SpeakerWaveformSquare, .duration_ms = 62}
+#define GAP(ms) {.midi_note = 0, .waveform = SpeakerWaveformSquare, .duration_ms = (ms)}
+// digital watch alarm: two bursts of four fast ~4 kHz beeps (C8), 1437 ms in total
+#define CHIME_LENGTH_MS 1437
+static const SpeakerNote s_chime_notes[] = {
+  BEEP, GAP(63), BEEP, GAP(63), BEEP, GAP(63), BEEP, GAP(563),
+  BEEP, GAP(63), BEEP, GAP(63), BEEP, GAP(63), BEEP,
+};
+#undef BEEP
+#undef GAP
+#endif
 
 
 /*******************************************************************************
@@ -184,8 +202,9 @@ static void layers_center_in_window(PopupWindow *popup_window) {
  * Timer finished vibration split into separate intervals
  */
 static void app_timer_vibe_callback(void *data) {
-  int num_vibes_left = (int)data;
-  if (num_vibes_left != 0) {
+  int interval = (int)data;
+  s_app_timer = NULL;
+  if (interval < NUM_VIBE_INTERVALS) {
     // start vibration
     static const uint32_t vibe_seg[] = {300, 200, 300, 200, 300};
     const VibePattern pat_vibe = {
@@ -193,10 +212,41 @@ static void app_timer_vibe_callback(void *data) {
       .num_segments = ARRAY_LENGTH(vibe_seg),
     };
     vibes_enqueue_custom_pattern(pat_vibe);
-
-    --num_vibes_left;
-    s_app_timer = app_timer_register(2300, app_timer_vibe_callback, (void*)num_vibes_left);
   }
+#ifdef TIMER_HAS_SPEAKER
+  // hard deadline: never start a chime that would run past it, even if callbacks drift
+  if (s_chime && countdown_timer_get_epoch_ms() - s_alert_start_ms + CHIME_LENGTH_MS >
+      POPUP_CHIME_DURATION_MS) {
+    s_chime = false;
+  }
+  if (s_chime) {
+    // volume is scaled by the user's speaker setting; mute/Quiet Time silence it
+    speaker_play_notes(s_chime_notes, ARRAY_LENGTH(s_chime_notes), 100);
+  }
+#endif
+
+  ++interval;
+  if (interval < (s_chime ? NUM_CHIME_INTERVALS : NUM_VIBE_INTERVALS)) {
+    s_app_timer = app_timer_register(ALERT_INTERVAL_MS, app_timer_vibe_callback, (void*)interval);
+  }
+}
+
+
+
+/*
+ * stop any vibration/chime in progress and the timer repeating it
+ */
+
+static void prv_stop_alert(void) {
+  if (s_app_timer) {
+    app_timer_cancel(s_app_timer);
+  }
+  s_app_timer = NULL;
+  s_chime = false;
+  vibes_cancel();
+#ifdef TIMER_HAS_SPEAKER
+  speaker_stop();
+#endif
 }
 
 
@@ -326,9 +376,7 @@ static void prv_window_unload(Window* window){
 #endif
   popup_window->window = NULL;
 
-  app_timer_cancel(s_app_timer);
-  s_app_timer = NULL;
-  vibes_cancel();
+  prv_stop_alert();
 }
 
 
@@ -413,6 +461,8 @@ void popup_window_push(PopupWindow *popup_window, bool animated) {
  */
 
 void popup_window_pop(PopupWindow *popup_window, bool animated) {
+  // stop now rather than when the close animation finishes and the window unloads
+  prv_stop_alert();
   if (popup_window->window) {
     window_stack_remove(popup_window->window, animated);
   }
@@ -451,8 +501,16 @@ void popup_window_set_auto_close_duration(PopupWindow *popup_window, int64_t dur
  * sets up an app_timer callback to run multiple instances of a vibration pattern
  */
 
-void popup_window_set_vibes() {
-  s_app_timer = app_timer_register(0, app_timer_vibe_callback, (void*)NUM_VIBE_INTERVALS);
+void popup_window_set_vibes(bool chime) {
+  // restart the alert rather than running two chains if another timer ends while showing
+  if (s_app_timer) {
+    app_timer_cancel(s_app_timer);
+  }
+#ifdef TIMER_HAS_SPEAKER
+  s_chime = chime;
+#endif
+  s_alert_start_ms = countdown_timer_get_epoch_ms();
+  s_app_timer = app_timer_register(0, app_timer_vibe_callback, (void*)0);
 }
 
 
