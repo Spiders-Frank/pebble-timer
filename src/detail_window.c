@@ -99,6 +99,25 @@ static void layer_update_proc(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, detail_window->highlight_color);
   graphics_fill_rect(ctx, GRect(0, water_level, layer_get_bounds(layer).size.w,
     layer_get_bounds(layer).size.h - water_level), 1, GCornerNone);
+  // draw time background.
+  #ifdef PBL_BW
+    int8_t status_bar_width = layer_get_bounds(
+      status_bar_layer_get_layer(detail_window->status)).size.w;
+    int8_t aprox_char_width = 6;
+    int8_t horizontal_margin = 4;
+    char time_text_buffer[20];
+    GRect time_rect = GRect(0, 2, 0, 11);
+    
+    // size the background depending on length of time string.
+    clock_copy_time_string(time_text_buffer, 20);
+    time_rect.size.w = strlen(time_text_buffer) * aprox_char_width + horizontal_margin;
+    // center the background
+    time_rect.origin.x = ((status_bar_width / 2) - (time_rect.size.w / 2) );
+    
+    graphics_context_set_fill_color(ctx, GColorWhite);
+    graphics_fill_rect(ctx, time_rect, 1, GCornerNone);
+  #endif
+  
 #endif
 }
 

@@ -6,6 +6,12 @@ Simple pebble timer built to be published by Pebble in the store.
 ![alt Timer Detail](https://github.com/pebble/pebble-timer/blob/release-1.0/assets/Bubbles.png)
 ![alt Timer Pin](https://github.com/pebble/pebble-timer/blob/release-1.0/assets/Pin.png)
 
+# Purpose of fork
+This fork makes the status bar time readable in the detail window on black and white displays.
+It is currently unreadable because the waterline progress bar renders over the top of it (as described [in this issue](https://github.com/coredevices/pebble-timer/issues/3) ).
+This fork draws a white rectangle under the time. The rectangle is sized dynamically to support both time formats (12h and 24h).
+
+# Description
 Timers appear in a list on the main screen. Add a timer via the "+" icon at the top of the list similarly
 to the alarm app. When setting a timer, the time the timer will end is displayed under the entry fields if
 the timer duration is greater than 15 minutes. Also, the timer will send a pin to the timeline if the duration
